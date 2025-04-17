@@ -49,6 +49,11 @@ Desktop.ini
 *.cache
 *.pid
 
+#文件规范换行符
+* text=auto
+*.json text eol=lf
+
+
 # =============== Git LFS大文件管理（可选） =============== #
 # 如需管理大型资源文件，取消以下注释并配置.gitattributes
 # [参考网页10]
