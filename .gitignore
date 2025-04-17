@@ -1,0 +1,57 @@
+# =============== Unity核心忽略规则 =============== #
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]nityGenerated/
+/[Aa]ssets/AssetStoreTools*
+
+# 自动生成的IDE文件
+*.csproj
+*.sln
+*.suo
+*.userprefs
+*.pidb
+*.opendb
+
+# 序列化元文件（需保留.meta但排除临时版本）
+*.pidb.meta
+*.pdb.meta
+
+# =============== Rider编辑器专属规则 =============== #
+.idea/
+*.csproj.USER
+*.rider.user
+*.idea.workspace.xml
+*.idea.tasks.xml
+_ReSharper.Caches/
+
+# Rider调试缓存
+logs/idea.log
+logs/package-manager.log
+
+# =============== 跨平台通用忽略 =============== #
+# OS生成文件
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# 编译产物
+*.exe
+*.apk
+*.aab
+*.unitypackage
+
+# 日志与缓存
+*.log
+*.tmp
+*.cache
+*.pid
+
+# =============== Git LFS大文件管理（可选） =============== #
+# 如需管理大型资源文件，取消以下注释并配置.gitattributes
+# [参考网页10]
+# *.psd filter=lfs diff=lfs merge=lfs -text
+# *.fbx filter=lfs diff=lfs merge=lfs -text
