@@ -1,12 +1,11 @@
 # =============== Unity核心忽略规则 =============== #
 /[Ll]ibrary/
 /[Tt]emp/
-/[Oo]bj/
+/[Ou]bj/
 /[Bb]uild/
 /[Bb]uilds/
 /[Ll]ogs/
 /[Uu]nityGenerated/
-/[Aa]ssets/AssetStoreTools*
 
 # 自动生成的IDE文件
 *.csproj
