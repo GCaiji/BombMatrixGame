@@ -17,17 +17,16 @@ public class PlayerController : MonoBehaviour
     [Header("Animation Settings")]
     [SerializeField] private Animator animator;
     [SerializeField] private float stopThreshold = 0.1f;
-    [SerializeField] private float speedSmoothTime = 0.1f;
-    [SerializeField] private float speedTriggerThreshold = 0.3f; // 新增速度触发阈值
-    
+    [SerializeField] private float speedSmoothTime = 0.08f;  // 缩短默认平滑时间
+    [SerializeField] private float speedTriggerThreshold = 0.3f;
+
     [Header("Animation Optimization")]
-    [SerializeField] private float speedBufferTime = 0.5f; // 状态保持时间
+    [SerializeField] public float speedBufferTime = 0.1f;  // 从0.5改为0.1秒
     private float speedBufferTimer;
     
     private Camera mainCamera;
     private float currentSpeed;
     private float speedSmoothVelocity;
-    private bool isMoving; // 新增移动状态跟踪
 
     void Awake()
     {
@@ -39,7 +38,7 @@ public class PlayerController : MonoBehaviour
     {
         HandleMovementInput();
         UpdateDestinationMarker();
-        UpdateAnimationState(); 
+        UpdateAnimationState();
         HandleRotation();
     }
 
@@ -48,8 +47,7 @@ public class PlayerController : MonoBehaviour
         destinationMarker.SetActive(false);
         agent.speed = runSpeed;
         animator.SetFloat("Speed", 0f);
-        animator.ResetTrigger("Run"); // 初始化触发器状态
-        animator.ResetTrigger("Idle");
+        animator.SetBool("IsMoving", false);  // 初始化状态
     }
 
     private void HandleMovementInput()
@@ -61,6 +59,11 @@ public class PlayerController : MonoBehaviour
                 agent.SetDestination(hitPoint);
                 PlayClickEffect(hitPoint);
             }
+        }
+        else if (Input.GetKeyDown(KeyCode.S)) // 示例：按S键急停
+        {
+            agent.ResetPath();
+            agent.velocity = Vector3.zero;
         }
     }
 
@@ -97,39 +100,42 @@ public class PlayerController : MonoBehaviour
 
     private void UpdateAnimationState()
     {
-        float actualSpeed = agent.velocity.magnitude;
+        // 获取导航系统状态
+        bool isAgentStopped = agent.isStopped || agent.remainingDistance <= stopThreshold;
+    
+        // 优化1：使用更精准的速度判断逻辑
+        float actualSpeed = isAgentStopped ? 0 : agent.velocity.magnitude;
         bool isActuallyMoving = actualSpeed > speedTriggerThreshold;
 
-        // 速度缓冲逻辑
+        // 优化2：分层缓冲控制
         if (isActuallyMoving)
         {
-            speedBufferTimer = speedBufferTime; // 重置计时器
+            // 移动时立即重置计时器（无缓冲）
+            speedBufferTimer = 0;
+            animator.SetBool("IsMoving", true);
         }
         else
         {
-            speedBufferTimer -= Time.deltaTime;
+            // 停止时启动缓冲倒计时
+            speedBufferTimer += Time.deltaTime;
+            if (speedBufferTimer >= speedBufferTime)
+            {
+                animator.SetBool("IsMoving", false);
+            }
         }
 
-        // 有效移动状态 = 当前移动或缓冲期内
-        bool validMovingState = speedBufferTimer > 0;
+        // 优化3：动态速度计算
+        float targetSpeed = animator.GetBool("IsMoving") ? 
+            Mathf.Clamp01(actualSpeed / runSpeed) : 
+            0f;
 
-        // 状态切换逻辑
-        if (!isMoving && validMovingState)
-        {
-            animator.ResetTrigger("Idle");
-            animator.SetTrigger("Run");
-            isMoving = true;
-        }
-        else if (isMoving && !validMovingState)
-        {
-            animator.ResetTrigger("Run");
-            animator.SetTrigger("Idle");
-            isMoving = false;
-        }
+        currentSpeed = Mathf.SmoothDamp(
+            currentSpeed, 
+            targetSpeed, 
+            ref speedSmoothVelocity, 
+            speedSmoothTime
+        );
     
-        // 平滑速度参数（即使实际速度为0）
-        float targetSpeed = validMovingState ? actualSpeed / runSpeed : 0;
-        currentSpeed = Mathf.SmoothDamp(currentSpeed, targetSpeed, ref speedSmoothVelocity, speedSmoothTime);
         animator.SetFloat("Speed", currentSpeed);
     }
 
