@@ -5,7 +5,7 @@ public class BombController : MonoBehaviour {
     public ParticleSystem smoke; // 拖入SmokeEffect
 
     // 动画事件调用：开始燃烧
-    public void PlayParticles() {
+    public void PlayPagitrticles() {
         spark.Play();
         smoke.Play();
     }
