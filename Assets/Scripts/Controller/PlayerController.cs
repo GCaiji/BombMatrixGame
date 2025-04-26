@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.AI;
+using System.Collections.Generic;
 
 public class PlayerController : MonoBehaviour
 {
@@ -24,6 +25,15 @@ public class PlayerController : MonoBehaviour
     [SerializeField] public float speedBufferTime = 0.1f;  // 从0.5改为0.1秒
     private float speedBufferTimer;
     
+    [Header("Bomb Settings")]
+    [SerializeField] private GameObject bombPrefab;
+    [SerializeField] private int maxBombs = 3;
+    private List<GameObject> activeBombs = new List<GameObject>();
+    
+    [Header("Bomb Container")]
+    [SerializeField] private Transform bombContainer; 
+    
+    
     private Camera mainCamera;
     private float currentSpeed;
     private float speedSmoothVelocity;
@@ -40,6 +50,7 @@ public class PlayerController : MonoBehaviour
         UpdateDestinationMarker();
         UpdateAnimationState();
         HandleRotation();
+        HandleBombPlacement(); 
     }
 
     private void InitializeComponents()
@@ -149,6 +160,42 @@ public class PlayerController : MonoBehaviour
                 targetRotation, 
                 rotationSpeed * Time.deltaTime
             );
+        }
+    }
+    private void HandleBombPlacement()
+    {
+        // 清理已销毁的炸弹引用
+        activeBombs.RemoveAll(b => b == null);
+
+        if (Input.GetMouseButtonDown(0) && activeBombs.Count < maxBombs)
+        {
+            Vector3 spawnPos = transform.position;
+            spawnPos.y = 0;
+        
+            GameObject newBomb = Instantiate(
+        bombPrefab, 
+        spawnPos, 
+        Quaternion.identity, 
+        bombContainer  // 添加父容器参数
+    );
+            activeBombs.Add(newBomb);
+
+            // 获取回调的正确方式
+            Animator bombAnimator = newBomb.GetComponent<Animator>();
+            if(bombAnimator != null)
+            {
+                StateMachineBehaviour[] behaviours = bombAnimator.GetBehaviours<BombDestroyCallback>();
+                if(behaviours.Length > 0)
+                {
+                    BombDestroyCallback callback = (BombDestroyCallback)behaviours[0];
+                    callback.onDestroyComplete = () => 
+                    {
+                        // 安全移除
+                        if(activeBombs.Contains(newBomb))
+                            activeBombs.Remove(newBomb);
+                    };
+                }
+            }
         }
     }
 }
