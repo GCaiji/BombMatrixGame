@@ -68,7 +68,7 @@ public class BombController : MonoBehaviour
         // 分离爆炸粒子父级
         if(explosion != null)
         {
-            explosion.transform.SetParent(null); // 使粒子独立于炸弹存在
+            explosion.transform.SetParent(transform.parent); // 使粒子独立于炸弹存在
             explosion.Play();
         }
 
