@@ -8,84 +8,133 @@ public class BombController : MonoBehaviour
     [SerializeField] private ParticleSystem smoke;
     [SerializeField] private ParticleSystem explosion;
     
-    public float fuseTime = 3f;  // 倒计时时间
-    public Animator bombAnimator;
-
-    private float timer;
-    private bool hasExploded;
-    private bool isDestroyed = false;
+    [Header("Damage Settings")]
+    [SerializeField] private LayerMask damageableLayers;
+    
+    private BombStats _bombStats;
+    private Animator _bombAnimator;
+    private float _timer;
+    private bool _hasExploded;
+    private bool _isDestroyed;
 
     void Start()
     {
-        timer = fuseTime;
-        bombAnimator.Play("Ignite");
+        // 添加Animator组件获取
+        _bombAnimator = GetComponent<Animator>();
+        
+        if (_bombStats == null)
+        {
+            Debug.LogError("BombStats未初始化！");
+            enabled = false;
+            return;
+        }
+
+        _timer = _bombStats.FuseTime;
+        
+        if (_bombAnimator != null)
+            _bombAnimator.Play("Ignite");
+        else
+            Debug.LogError("缺少Animator组件");
     }
 
     void Update()
     {
-        if (!hasExploded)
+        if (!_hasExploded && _bombStats != null)
         {
-            timer -= Time.deltaTime;
-            if (timer <= 0)
+            _timer -= Time.deltaTime;
+            if (_timer <= 0)
             {
                 TriggerExplosion();
             }
         }
     }
 
-    public void TriggerExplosion()
+    public void Initialize(BombStats stats)
     {
-        if(isDestroyed) return;
-    
-        hasExploded = true;
-        if(bombAnimator != null)
-            bombAnimator.SetTrigger("Explode");
+        _bombStats = stats;
     }
 
-    // 动画事件：爆炸结束后进入摧毁状态
+    private void Explode()
+    {
+        Debug.Log($"炸弹爆炸参数 - 伤害: {_bombStats.Damage} " +
+                 $"半径: {_bombStats.ExplosionRadius} " +
+                 $"引燃时间: {_bombStats.FuseTime}");
+
+        Collider[] hits = Physics.OverlapSphere(
+            transform.position,
+            _bombStats.ExplosionRadius,
+            damageableLayers
+        );
+
+        foreach (Collider hit in hits)
+        {
+            IDamageable damageable = hit.GetComponent<IDamageable>();
+            damageable?.TakeDamage(_bombStats.Damage);
+        }
+    }
+
+    public void TriggerExplosion()
+    {
+        if(_isDestroyed) return;
+    
+        _hasExploded = true;
+        Explode();
+        
+        _bombAnimator?.SetTrigger("Explode");
+    }
+
+    #if UNITY_EDITOR
+    void OnDrawGizmosSelected()
+    {
+        if (_bombStats != null)
+        {
+            Gizmos.color = Color.red;
+            Gizmos.DrawWireSphere(transform.position, _bombStats.ExplosionRadius);
+        }
+    }
+    #endif
+
+    // 动画事件方法
     public void OnExplosionEnd()
     {
-        if (isDestroyed || bombAnimator == null) 
+        if (_isDestroyed || _bombAnimator == null) 
         {
             Debug.LogWarning("尝试触发已销毁对象的动画事件");
             return;
         }
-        bombAnimator.SetTrigger("Destroy");
+        _bombAnimator.SetTrigger("Destroy");
     }
 
-    // 动画事件：摧毁结束后销毁对象
     public void OnDestroyEnd()
     {
-        if (isDestroyed) return;
+        if (_isDestroyed) return;
         Debug.Log($"触发销毁流程 - 实例ID: {gameObject.GetInstanceID()}");
         StartCoroutine(DestroyAfterParticles());
     }
-    // 修改BombController.cs
+
     private IEnumerator DestroyAfterParticles()
     {
-        isDestroyed = true;
+        _isDestroyed = true;
     
-        // 分离爆炸粒子父级
         if(explosion != null)
         {
-            explosion.transform.SetParent(transform.parent); // 使粒子独立于炸弹存在
+            explosion.transform.SetParent(transform.parent);
             explosion.Play();
         }
 
-        // 立即销毁炸弹对象
         Destroy(gameObject); 
 
-        // 等待粒子播放完成
         if(explosion != null)
         {
             float duration = explosion.main.duration;
             yield return new WaitForSeconds(duration);
-            Destroy(explosion.gameObject); // 最后销毁粒子
+            Destroy(explosion.gameObject);
         }
     }
+
     public void PlayParticles()
     {
-        if(isDestroyed) return; // 增加销毁状态检查
+        if(_isDestroyed) return;
     
         if(spark != null && spark.isStopped) 
             spark.Play();
@@ -95,28 +144,15 @@ public class BombController : MonoBehaviour
 
     public void StopParticles()
     {
-        spark.Stop();
-        smoke.Stop();
+        if(spark != null) spark.Stop();
+        if(smoke != null) smoke.Stop();
     }
-    public void playExplosion()
+
+    public void PlayExplosion() // 修正方法名大写
     {
-        // 添加更详细的空引用检查
-        if (isDestroyed || explosion == null)
-        {
-            //Debug.LogError("粒子系统引用丢失或对象已销毁");
-            return;
-        }
+        if (_isDestroyed || explosion == null) return;
 
-        // 检查粒子系统是否有效
-        if (!explosion.IsAlive(true))
-        {
-            //Debug.LogError("粒子系统不可用");
-            return;
-        }
-
-        // 打印关键参数
-        Debug.Log($"爆炸粒子状态 - 时长: {explosion.main.duration}秒 | 循环: {explosion.main.loop} | 播放状态: {explosion.isPlaying}");
-    
+        Debug.Log($"爆炸粒子状态 - 时长: {explosion.main.duration}秒");    
         explosion.Play();
     }
 }

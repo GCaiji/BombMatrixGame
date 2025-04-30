@@ -14636,5 +14636,8 @@ MonoBehaviour:
   spark: {fileID: 2171281904484823823}
   smoke: {fileID: 1405757105126072529}
   explosion: {fileID: 3087562196585751140}
+  damageableLayers:
+    serializedVersion: 2
+    m_Bits: 128
   fuseTime: 3
   bombAnimator: {fileID: 1664996368763187987}

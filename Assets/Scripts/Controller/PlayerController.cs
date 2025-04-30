@@ -8,7 +8,6 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private NavMeshAgent agent;
     [SerializeField] private LayerMask groundLayer;
     [SerializeField] private float raycastDistance = 100f;
-    [SerializeField] private float runSpeed = 5.5f;
     [SerializeField] private float rotationSpeed = 15f;
 
     [Header("Visual Effects")]
@@ -18,30 +17,31 @@ public class PlayerController : MonoBehaviour
     [Header("Animation Settings")]
     [SerializeField] private Animator animator;
     [SerializeField] private float stopThreshold = 0.1f;
-    [SerializeField] private float speedSmoothTime = 0.08f;  // 缩短默认平滑时间
+    [SerializeField] private float speedSmoothTime = 0.08f;
     [SerializeField] private float speedTriggerThreshold = 0.3f;
+    [SerializeField] private float speedBufferTime = 0.1f;
 
-    [Header("Animation Optimization")]
-    [SerializeField] public float speedBufferTime = 0.1f;  // 从0.5改为0.1秒
-    private float speedBufferTimer;
-    
     [Header("Bomb Settings")]
     [SerializeField] private GameObject bombPrefab;
+    [SerializeField] private BombStats bombStats;
     [SerializeField] private int maxBombs = 3;
+    [SerializeField] private Transform bombContainer;
+    
+    [Header("Character Reference")]
+    [SerializeField] private CharacterController characterController;
+    
+    
     private List<GameObject> activeBombs = new List<GameObject>();
-    
-    [Header("Bomb Container")]
-    [SerializeField] private Transform bombContainer; 
-    
-    
     private Camera mainCamera;
     private float currentSpeed;
     private float speedSmoothVelocity;
+    private float speedBufferTimer;
 
     void Awake()
     {
         mainCamera = Camera.main;
         InitializeComponents();
+        agent.speed = characterController.MoveSpeed;
     }
 
     void Update()
@@ -50,15 +50,14 @@ public class PlayerController : MonoBehaviour
         UpdateDestinationMarker();
         UpdateAnimationState();
         HandleRotation();
-        HandleBombPlacement(); 
+        HandleBombPlacement();
     }
 
     private void InitializeComponents()
     {  
         destinationMarker.SetActive(false);
-        agent.speed = runSpeed;
         animator.SetFloat("Speed", 0f);
-        animator.SetBool("IsMoving", false);  // 初始化状态
+        animator.SetBool("IsMoving", false);
     }
 
     private void HandleMovementInput()
@@ -117,7 +116,7 @@ public class PlayerController : MonoBehaviour
         // 优化1：使用更精准的速度判断逻辑
         float actualSpeed = isAgentStopped ? 0 : agent.velocity.magnitude;
         bool isActuallyMoving = actualSpeed > speedTriggerThreshold;
-
+        float characterRunSpeed = characterController.MoveSpeed;
         // 优化2：分层缓冲控制
         if (isActuallyMoving)
         {
@@ -137,7 +136,7 @@ public class PlayerController : MonoBehaviour
 
         // 优化3：动态速度计算
         float targetSpeed = animator.GetBool("IsMoving") ? 
-            Mathf.Clamp01(actualSpeed / runSpeed) : 
+            Mathf.Clamp01(actualSpeed / characterRunSpeed) : 
             0f;
 
         currentSpeed = Mathf.SmoothDamp(
@@ -173,11 +172,18 @@ public class PlayerController : MonoBehaviour
             spawnPos.y = 0;
         
             GameObject newBomb = Instantiate(
-        bombPrefab, 
-        spawnPos, 
-        Quaternion.identity, 
-        bombContainer  // 添加父容器参数
-    );
+                bombPrefab, 
+                spawnPos, 
+                Quaternion.identity, 
+                bombContainer  // 添加父容器参数
+            );
+            
+            BombController bombController = newBomb.GetComponent<BombController>();
+            if(bombController != null)
+            {
+                bombController.Initialize(bombStats); // 传入配置参数
+            }
+            
             activeBombs.Add(newBomb);
 
             // 获取回调的正确方式
