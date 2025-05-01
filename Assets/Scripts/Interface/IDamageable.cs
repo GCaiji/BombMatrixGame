@@ -1,11 +1,8 @@
 using UnityEngine;
 
-public interface IDamageable
+// 基础伤害接口
+public interface IDamageable 
 {
-    /// <summary>
-    /// 接收伤害的接口方法
-    /// </summary>
-    /// <param name="damage">基础伤害值</param>
-    /// <param name="damageSource">伤害来源（可选）</param>
-    void TakeDamage(int damage, GameObject damageSource = null);
+    void TakeDamage(int damageAmount);  // 接受伤害
+    bool IsAlive { get; }               // 是否存活（可选）
 }

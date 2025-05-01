@@ -17,3 +17,4 @@ MonoBehaviour:
   maxBombs: 3
   bombCooldown: 1
   invincibleDuration: 2
+  currentHealth: 5

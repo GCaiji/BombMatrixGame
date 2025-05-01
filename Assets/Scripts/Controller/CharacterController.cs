@@ -3,7 +3,7 @@ using UnityEngine;
 public class CharacterController : MonoBehaviour
 {
     [SerializeField] private CharacterStats stats;
-    
+    public CharacterStats Stats => stats;
     public float MoveSpeed => stats.MoveSpeed;
     private void Awake()
     {

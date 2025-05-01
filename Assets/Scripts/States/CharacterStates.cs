@@ -3,10 +3,12 @@ using UnityEngine;
 [CreateAssetMenu(menuName = "Game/Character Stats")]
 public class CharacterStats : ScriptableObject
 {
+    
+    
     [Header("Base Settings")]
     [SerializeField] [Range(1, 10)] private int maxHealth = 5;
     [SerializeField] [Range(3, 8)] private float moveSpeed = 5f;
-    [SerializeField] [Range(1, 5)] private int maxBombs = 1; // 默认值改为1
+    [SerializeField] [Range(1, 10)] private int maxBombs = 10; 
     [SerializeField] [Range(0.5f, 2f)] private float bombCooldown = 1f;
     [SerializeField] [Range(1f, 3f)] private float invincibleDuration = 2f;
 

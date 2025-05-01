@@ -24,12 +24,11 @@ public class PlayerController : MonoBehaviour
     [Header("Bomb Settings")]
     [SerializeField] private GameObject bombPrefab;
     [SerializeField] private BombStats bombStats;
-    [SerializeField] private int maxBombs = 3;
     [SerializeField] private Transform bombContainer;
     
     [Header("Character Reference")]
     [SerializeField] private CharacterController characterController;
-    
+   
     
     private List<GameObject> activeBombs = new List<GameObject>();
     private Camera mainCamera;
@@ -41,7 +40,7 @@ public class PlayerController : MonoBehaviour
     {
         mainCamera = Camera.main;
         InitializeComponents();
-        agent.speed = characterController.MoveSpeed;
+        agent.speed = characterController.Stats.MoveSpeed;
     }
 
     void Update()
@@ -116,7 +115,7 @@ public class PlayerController : MonoBehaviour
         // 优化1：使用更精准的速度判断逻辑
         float actualSpeed = isAgentStopped ? 0 : agent.velocity.magnitude;
         bool isActuallyMoving = actualSpeed > speedTriggerThreshold;
-        float characterRunSpeed = characterController.MoveSpeed;
+        float characterRunSpeed =agent.speed;
         // 优化2：分层缓冲控制
         if (isActuallyMoving)
         {
@@ -166,7 +165,7 @@ public class PlayerController : MonoBehaviour
         // 清理已销毁的炸弹引用
         activeBombs.RemoveAll(b => b == null);
 
-        if (Input.GetMouseButtonDown(0) && activeBombs.Count < maxBombs)
+        if (Input.GetMouseButtonDown(0) && activeBombs.Count < characterController.Stats.MaxBombs)
         {
             Vector3 spawnPos = transform.position;
             spawnPos.y = 0;

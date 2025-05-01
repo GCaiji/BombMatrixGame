@@ -446,7 +446,6 @@ MonoBehaviour:
   speedBufferTime: 0.05
   bombPrefab: {fileID: 4387801285387395815, guid: ca70d4d1316b93147a351b44a886041e, type: 3}
   bombStats: {fileID: 11400000, guid: 44830d91e7b757a4c8608328d520f6f9, type: 2}
-  maxBombs: 3
   bombContainer: {fileID: 1982963732}
   characterController: {fileID: 484572608}
 --- !u!195 &484572606
