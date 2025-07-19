@@ -12,6 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 65684d0539226fe4db79d2e4fd23bb0a, type: 3}
   m_Name: SO_BasicBomb
   m_EditorClassIdentifier: 
-  explosionRadius: 2
-  fuseTime: 3
+  explosionRadius: 0.2
+  fuseTime: 2
   damage: 1

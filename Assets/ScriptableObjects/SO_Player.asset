@@ -15,6 +15,6 @@ MonoBehaviour:
   maxHealth: 5
   moveSpeed: 5
   maxBombs: 3
-  bombCooldown: 1
+  bombCooldown: 0.5
   invincibleDuration: 2
   currentHealth: 5

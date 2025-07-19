@@ -23,13 +23,11 @@ public class PlayerController : MonoBehaviour
 
     [Header("Bomb Settings")]
     [SerializeField] private GameObject bombPrefab;
-    [SerializeField] private BombStats bombStats;
     [SerializeField] private Transform bombContainer;
-    
+
     [Header("Character Reference")]
     [SerializeField] private CharacterController characterController;
    
-    
     private List<GameObject> activeBombs = new List<GameObject>();
     private Camera mainCamera;
     private float currentSpeed;
@@ -40,7 +38,6 @@ public class PlayerController : MonoBehaviour
     {
         mainCamera = Camera.main;
         InitializeComponents();
-        agent.speed = characterController.Stats.MoveSpeed;
     }
 
     void Update()
@@ -51,7 +48,19 @@ public class PlayerController : MonoBehaviour
         HandleRotation();
         HandleBombPlacement();
     }
+    void Start()
+    {
+        // 改为在Start中进行检查
+        if (GameManager.Instance == null)
+        {
+            Debug.LogError("GameManager 实例未找到！");
+            enabled = false;
+            return;
+        }
 
+        // 移动速度设置也移到Start
+        agent.speed = characterController.Stats.MoveSpeed;
+    }
     private void InitializeComponents()
     {  
         destinationMarker.SetActive(false);
@@ -160,43 +169,53 @@ public class PlayerController : MonoBehaviour
             );
         }
     }
+
     private void HandleBombPlacement()
     {
         // 清理已销毁的炸弹引用
         activeBombs.RemoveAll(b => b == null);
 
-        if (Input.GetMouseButtonDown(0) && activeBombs.Count < characterController.Stats.MaxBombs)
+        if (Input.GetMouseButtonDown(0))
         {
+            if (activeBombs.Count >= characterController.Stats.MaxBombs)
+            {
+                Debug.Log($"炸弹数量已达上限 (当前时间戳: {Time.time:F2})");
+                return;
+            }
+
+            Debug.Log($"放置炸弹 (当前时间戳: {Time.time:F2})");
+
             Vector3 spawnPos = transform.position;
             spawnPos.y = 0;
-        
+
             GameObject newBomb = Instantiate(
                 bombPrefab, 
                 spawnPos, 
                 Quaternion.identity, 
                 bombContainer  // 添加父容器参数
             );
-            
+
             BombController bombController = newBomb.GetComponent<BombController>();
-            if(bombController != null)
+            if (bombController != null)
             {
-                bombController.Initialize(bombStats); // 传入配置参数
+                // 使用 GameManager 的运行时炸弹数据
+                bombController.Initialize(GameManager.Instance.CurrentBombStats.Clone());
             }
-            
+
             activeBombs.Add(newBomb);
 
             // 获取回调的正确方式
             Animator bombAnimator = newBomb.GetComponent<Animator>();
-            if(bombAnimator != null)
+            if (bombAnimator != null)
             {
                 StateMachineBehaviour[] behaviours = bombAnimator.GetBehaviours<BombDestroyCallback>();
-                if(behaviours.Length > 0)
+                if (behaviours.Length > 0)
                 {
                     BombDestroyCallback callback = (BombDestroyCallback)behaviours[0];
-                    callback.onDestroyComplete = () => 
+                    callback.onDestroyComplete = () =>
                     {
                         // 安全移除
-                        if(activeBombs.Contains(newBomb))
+                        if (activeBombs.Contains(newBomb))
                             activeBombs.Remove(newBomb);
                     };
                 }
