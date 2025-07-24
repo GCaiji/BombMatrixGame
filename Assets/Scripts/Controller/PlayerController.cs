@@ -33,6 +33,7 @@ public class PlayerController : MonoBehaviour
     private float currentSpeed;
     private float speedSmoothVelocity;
     private float speedBufferTimer;
+    private bool isEmergencyStop = false;  // 新增急停状态标志位
 
     void Awake()
     {
@@ -42,12 +43,15 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
+        HandleEmergencyStop();  
         HandleMovementInput();
         UpdateDestinationMarker();
         UpdateAnimationState();
         HandleRotation();
         HandleBombPlacement();
+        HandleBombRadiusIncrease(); // 新增：处理炸弹范围增加
     }
+
     void Start()
     {
         // 改为在Start中进行检查
@@ -61,6 +65,7 @@ public class PlayerController : MonoBehaviour
         // 移动速度设置也移到Start
         agent.speed = characterController.Stats.MoveSpeed;
     }
+
     private void InitializeComponents()
     {  
         destinationMarker.SetActive(false);
@@ -68,8 +73,24 @@ public class PlayerController : MonoBehaviour
         animator.SetBool("IsMoving", false);
     }
 
+    private void HandleEmergencyStop()
+    {
+        if (Input.GetKeyDown(KeyCode.S))
+        {
+            isEmergencyStop = true;
+            agent.ResetPath();
+            agent.velocity = Vector3.zero;
+        }
+        else if (Input.GetKeyUp(KeyCode.S))
+        {
+            isEmergencyStop = false;
+        }
+    }
+
     private void HandleMovementInput()
     {
+        if (isEmergencyStop) return;  // 如果处于急停状态，禁止移动操作
+
         if (Input.GetMouseButtonDown(1))
         {
             if (RaycastGround(out Vector3 hitPoint))
@@ -77,11 +98,6 @@ public class PlayerController : MonoBehaviour
                 agent.SetDestination(hitPoint);
                 PlayClickEffect(hitPoint);
             }
-        }
-        else if (Input.GetKeyDown(KeyCode.S)) // 示例：按S键急停
-        {
-            agent.ResetPath();
-            agent.velocity = Vector3.zero;
         }
     }
 
@@ -175,7 +191,8 @@ public class PlayerController : MonoBehaviour
         // 清理已销毁的炸弹引用
         activeBombs.RemoveAll(b => b == null);
 
-        if (Input.GetMouseButtonDown(0))
+        // 检查是否按下左键或A键
+        if (Input.GetMouseButtonDown(0) || Input.GetKeyDown(KeyCode.A))
         {
             if (activeBombs.Count >= characterController.Stats.MaxBombs)
             {
@@ -192,19 +209,17 @@ public class PlayerController : MonoBehaviour
                 bombPrefab, 
                 spawnPos, 
                 Quaternion.identity, 
-                bombContainer  // 添加父容器参数
+                bombContainer
             );
 
             BombController bombController = newBomb.GetComponent<BombController>();
             if (bombController != null)
             {
-                // 使用 GameManager 的运行时炸弹数据
                 bombController.Initialize(GameManager.Instance.CurrentBombStats.Clone());
             }
 
             activeBombs.Add(newBomb);
 
-            // 获取回调的正确方式
             Animator bombAnimator = newBomb.GetComponent<Animator>();
             if (bombAnimator != null)
             {
@@ -214,11 +229,21 @@ public class PlayerController : MonoBehaviour
                     BombDestroyCallback callback = (BombDestroyCallback)behaviours[0];
                     callback.onDestroyComplete = () =>
                     {
-                        // 安全移除
                         if (activeBombs.Contains(newBomb))
                             activeBombs.Remove(newBomb);
                     };
                 }
+            }
+        }
+    }
+
+    private void HandleBombRadiusIncrease()
+    {
+        if (Input.GetKeyDown(KeyCode.D))
+        {
+            if (GameManager.Instance != null && GameManager.Instance.CurrentBombStats != null)
+            {
+                GameManager.Instance.CurrentBombStats.IncreaseExplosionRadius(0.5f);
             }
         }
     }

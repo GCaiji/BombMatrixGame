@@ -18,38 +18,39 @@ public class CameraController : MonoBehaviour
     [SerializeField] private float zoomSpeed = 10f;
 
     private Vector3 offset;
+    private Vector3 targetOffset; // 新增：目标偏移量
 
     void Start()
     {
         // 初始化偏移量
         offset = new Vector3(0, height, -distance);
+        targetOffset = offset;
     }
 
     void LateUpdate()
     {
         if (target == null || lookAtPoint == null) return;
 
-        // 摄像机位置计算
-        Vector3 desiredPosition = target.position + offset;
-        Vector3 smoothedPosition = Vector3.Lerp(
-            transform.position, 
-            desiredPosition, 
-            smoothSpeed * Time.deltaTime
-        );
+        // 平滑过渡到目标偏移量
+        offset = Vector3.Lerp(offset, targetOffset, Time.deltaTime * smoothSpeed);
         
-        transform.position = smoothedPosition;
-
+        // 更新摄像机位置
+        transform.position = target.position + offset;
+        
         // 始终看向目标点
         transform.LookAt(lookAtPoint.position);
 
-        // 可选：鼠标滚轮缩放
+        // 处理缩放
         HandleZoom();
     }
 
     private void HandleZoom()
     {
         float scroll = Input.GetAxis("Mouse ScrollWheel");
-        height = Mathf.Clamp(height - scroll * zoomSpeed, minHeight, maxHeight);
-        offset = new Vector3(0, height, -distance);
+        if (scroll != 0)
+        {
+            height = Mathf.Clamp(height - scroll * zoomSpeed, minHeight, maxHeight);
+            targetOffset = new Vector3(0, height, -distance); // 更新目标偏移量
+        }
     }
 }

@@ -64,7 +64,7 @@ public class BombController : MonoBehaviour
 
     private void Explode()
     {
-        Debug.Log($"[BombController] 开始爆炸检测 - 位置: {transform.position}, 半径: {_runtimeBombStats.ExplosionRadius}");
+        // Debug.Log($"[BombController] 开始爆炸检测 - 位置: {transform.position}, 半径: {_runtimeBombStats.ExplosionRadius}");
 
         // 获取范围内物体
         Collider[] hits = Physics.OverlapSphere(
@@ -73,27 +73,27 @@ public class BombController : MonoBehaviour
             damageableLayers
         );
 
-        Debug.Log($"[BombController] 检测到 {hits.Length} 个物体在爆炸范围内");
+        // Debug.Log($"[BombController] 检测到 {hits.Length} 个物体在爆炸范围内");
 
         Vector3 explosionPos = transform.position;
         float explosionRadius = _runtimeBombStats.ExplosionRadius;
 
         foreach (Collider hit in hits)
         {
-            Debug.Log($"[BombController] 检测到物体: {hit.gameObject.name}, Layer: {LayerMask.LayerToName(hit.gameObject.layer)}");
+            // Debug.Log($"[BombController] 检测到物体: {hit.gameObject.name}, Layer: {LayerMask.LayerToName(hit.gameObject.layer)}");
             
             // 处理可破坏物体
             DestructibleTile destructibleTile = hit.GetComponent<DestructibleTile>();
-            if (destructibleTile != null)
-            {
-                Debug.Log($"[BombController] 发现可破坏瓦片: {hit.gameObject.name}");
-            }
+            // if (destructibleTile != null)
+            // {
+            //     Debug.Log($"[BombController] 发现可破坏瓦片: {hit.gameObject.name}");
+            // }
 
             // 处理可受伤物体
             IDamageable damageable = hit.GetComponent<IDamageable>();
             if (damageable != null)
             {
-                Debug.Log($"[BombController] 对物体 {hit.gameObject.name} 造成伤害: {_runtimeBombStats.Damage}");
+                // Debug.Log($"[BombController] 对物体 {hit.gameObject.name} 造成伤害: {_runtimeBombStats.Damage}");
                 damageable.TakeDamage(_runtimeBombStats.Damage);
             }
         }
@@ -101,7 +101,7 @@ public class BombController : MonoBehaviour
         // 通知GroundManager处理地形破坏
         if (GroundManager.Instance != null)
         {
-            Debug.Log($"[BombController] 通知GroundManager处理地形破坏");
+            // Debug.Log($"[BombController] 通知GroundManager处理地形破坏");
             GroundManager.Instance.DestroyTilesInRadius(explosionPos, explosionRadius);
         }
         else
@@ -167,7 +167,7 @@ public class BombController : MonoBehaviour
     {
         if (_isDestroyed || _bombAnimator == null) 
         {
-            Debug.LogWarning("尝试触发已销毁对象的动画事件");
+            // Debug.LogWarning("尝试触发已销毁对象的动画事件");
             return;
         }
         _bombAnimator.SetTrigger("Destroy");
@@ -176,7 +176,7 @@ public class BombController : MonoBehaviour
     public void OnDestroyEnd()
     {
         if (_isDestroyed) return;
-        Debug.Log($"触发销毁流程 - 实例ID: {gameObject.GetInstanceID()}");
+        // Debug.Log($"触发销毁流程 - 实例ID: {gameObject.GetInstanceID()}");
         StartCoroutine(DestroyAfterParticles());
     }
 
@@ -220,7 +220,7 @@ public class BombController : MonoBehaviour
     {
         if (_isDestroyed || explosion == null) return;
 
-        Debug.Log($"爆炸粒子状态 - 时长: {explosion.main.duration}秒");    
+        // Debug.Log($"爆炸粒子状态 - 时长: {explosion.main.duration}秒");    
         explosion.Play();
     }
 }

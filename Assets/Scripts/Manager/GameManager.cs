@@ -6,8 +6,11 @@ public class GameManager : MonoBehaviour
     [Header("Bomb Settings")]
     [SerializeField] private BombStats baseBombStats;
     
+    [Header("Character Settings")]
+    [SerializeField] private CharacterStats baseCharacterStats;    // 新增：角色基础配置
+    
     [Header("Game Settings")]
-    [SerializeField] private float destructionGoal = 0.8f; // 需要破坏的目标百分比
+    [SerializeField] private MapStats mapStats;           // 新增：地图配置引用
     [SerializeField] private float timeLimit = 180f;      // 游戏时间限制（秒）
     
     [Header("Debug")]
@@ -15,6 +18,7 @@ public class GameManager : MonoBehaviour
     [SerializeField] private float remainingTime;                // 剩余游戏时间
     
     private RuntimeBombStats currentBombStats;
+    private RuntimeCharacterStats currentCharacterStats;    // 新增：角色运行时数据
     private bool gameEnded;
     
     // 单例实例
@@ -22,6 +26,7 @@ public class GameManager : MonoBehaviour
     
     // 公开属性
     public RuntimeBombStats CurrentBombStats => currentBombStats;
+    public RuntimeCharacterStats CurrentCharacterStats => currentCharacterStats;    // 新增：角色数据访问器
     public float CurrentDestructionPercentage => currentDestructionPercentage;
     public float RemainingTime => remainingTime;
     public bool IsGameEnded => gameEnded;
@@ -38,10 +43,28 @@ public class GameManager : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
         
-        // 初始化基础数据
+        // 初始化基础数据和验证
         if (baseBombStats == null)
         {
             Debug.LogError("baseBombStats 未设置！");
+        }
+        
+        if (baseCharacterStats == null)    // 新增：检查角色配置
+        {
+            Debug.LogError("baseCharacterStats 未设置！");
+        }
+        
+        // 检查并加载默认地图配置
+        if (mapStats == null)
+        {
+            // 尝试加载默认配置
+            mapStats = Resources.Load<MapStats>("DefaultMapStats");
+            
+            if (mapStats == null)
+            {
+                Debug.LogWarning("未找到默认地图配置，创建临时配置");
+                mapStats = ScriptableObject.CreateInstance<MapStats>();
+            }
         }
         
         ResetToDefaultStats();
@@ -82,14 +105,16 @@ public class GameManager : MonoBehaviour
         gameEnded = false;
         currentDestructionPercentage = 0f;
         remainingTime = timeLimit;
+        ResetToDefaultStats();
         
         // 启用游戏控制相关的对象
         Time.timeScale = 1f;
     }
 
-    // 重置炸弹数据（仅限炸弹属性）
+    // 重置数据（包括炸弹和角色属性）
     public void ResetToDefaultStats()
     {
+        // 重置炸弹数据
         if (baseBombStats != null)
         {
             currentBombStats = baseBombStats.CreateRuntimeStats();
@@ -105,6 +130,26 @@ public class GameManager : MonoBehaviour
                 ExplosionRadius = 2f
             };
         }
+
+        // 重置角色数据
+        if (baseCharacterStats != null)
+        {
+            currentCharacterStats = baseCharacterStats.CreateRuntimeStats();
+            Debug.Log($"角色数值重置: 生命值={currentCharacterStats.CurrentHealth}");
+        }
+        else
+        {
+            Debug.LogWarning("使用默认角色数值");
+            currentCharacterStats = new RuntimeCharacterStats
+            {
+                MaxHealth = 5,
+                CurrentHealth = 5,
+                MoveSpeed = 5f,
+                MaxBombs = 3,
+                BombCooldown = 1f,
+                InvincibleDuration = 2f
+            };
+        }
     }
 
     // 开始新游戏
@@ -117,12 +162,18 @@ public class GameManager : MonoBehaviour
     // 更新破坏进度
     public void UpdateDestructionProgress(int destroyedTileCount, int totalTiles)
     {
-        if (gameEnded) return;
+        if (gameEnded || mapStats == null) return;
+        
+        if (totalTiles <= 0)
+        {
+            Debug.LogWarning("totalTiles不能为0或负数");
+            return;
+        }
         
         currentDestructionPercentage = Mathf.Clamp01((float)destroyedTileCount / totalTiles);
         
-        // 检查胜利条件
-        if (currentDestructionPercentage >= destructionGoal)
+        // 使用 MapStats 中的配置，添加null检查
+        if (mapStats != null && currentDestructionPercentage >= mapStats.DestructionGoal)
         {
             GameOver(true); // 达成破坏目标 - 胜利
         }

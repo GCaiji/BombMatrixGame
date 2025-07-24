@@ -5,9 +5,9 @@ using UnityEngine;
 [System.Serializable]
 public class RuntimeBombStats 
 {
-    public float ExplosionRadius { get;  set; }
-    public float FuseTime { get;  set; }
-    public int Damage { get;  set; }
+    public float ExplosionRadius { get; set; }
+    public float FuseTime { get; set; }
+    public int Damage { get; set; }
 
     public RuntimeBombStats Clone()
     {
@@ -18,5 +18,10 @@ public class RuntimeBombStats
             Damage = this.Damage
         };
     }
-    
+
+    public void IncreaseExplosionRadius(float amount)
+    {
+        ExplosionRadius = Mathf.Clamp(ExplosionRadius + amount, 0.2f, 5f);
+        Debug.Log($"炸弹爆炸范围已增加! 当前范围: {ExplosionRadius}");
+    }
 }

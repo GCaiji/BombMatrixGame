@@ -9,9 +9,6 @@ public class GroundManager : MonoBehaviour
 {
     public static GroundManager Instance { get; private set; }
     
-    [Header("Settings")]
-    [SerializeField] private float destroyAnimationDuration = 0.8f;
-    
     private NavMeshSurface _navMeshSurface;
     private readonly List<DestructibleTile> _allTiles = new();
     private int _initialTileCount;
@@ -42,8 +39,8 @@ public class GroundManager : MonoBehaviour
 
     public void DestroyTilesInRadius(Vector3 explosionPos, float radius)
     {
-        Debug.Log($"[GroundManager] 开始处理范围内地形破坏 - 中心点: {explosionPos}, 半径: {radius}");
-        Debug.Log($"[GroundManager] 当前总瓦片数: {_allTiles.Count}, 已销毁: {_destroyedTiles}");
+        // Debug.Log($"[GroundManager] 开始处理范围内地形破坏 - 中心点: {explosionPos}, 半径: {radius}");
+        // Debug.Log($"[GroundManager] 当前总瓦片数: {_allTiles.Count}, 已销毁: {_destroyedTiles}");
 
         bool destroyedAny = false;
         int tilesDestroyed = 0;
@@ -52,7 +49,7 @@ public class GroundManager : MonoBehaviour
         {
             if (tile == null)
             {
-                Debug.LogWarning("[GroundManager] 发现空瓦片引用");
+                // Debug.LogWarning("[GroundManager] 发现空瓦片引用");
                 continue;
             }
 
@@ -65,7 +62,7 @@ public class GroundManager : MonoBehaviour
             float distance = Vector3.Distance(tile.transform.position, explosionPos);
             if (distance <= radius)
             {
-                Debug.Log($"[GroundManager] 销毁瓦片: {tile.gameObject.name}, 距离: {distance}");
+                // Debug.Log($"[GroundManager] 销毁瓦片: {tile.gameObject.name}, 距离: {distance}");
                 tile.DestroyTile();
                 _destroyedTiles++;
                 tilesDestroyed++;
@@ -73,7 +70,7 @@ public class GroundManager : MonoBehaviour
             }
         }
         
-        Debug.Log($"[GroundManager] 本次爆炸共销毁 {tilesDestroyed} 个瓦片");
+        // Debug.Log($"[GroundManager] 本次爆炸共销毁 {tilesDestroyed} 个瓦片");
 
         if (destroyedAny)
         {

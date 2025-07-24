@@ -12,7 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5e12c2d1bb5bebb43a8f42bd03bb1ce0, type: 3}
   m_Name: SO_Level1
   m_EditorClassIdentifier: 
-  destructionGoal: 0.8
+  destructionGoal: 0.95
   timeLimit: 180
   tileSize: {x: 1, y: 1}
-  tileDurability: 1
