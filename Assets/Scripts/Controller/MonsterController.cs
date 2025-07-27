@@ -14,26 +14,23 @@ public class MonsterController : MonoBehaviour
     private Vector3 targetLandPosition;
     private bool isFalling = false;
     private bool hasLanded = false;
-    private bool isGrounded = false; // 新增：检测是否接触地面
+    private bool isGrounded = false;
 
     private void Awake()
     {
-        // 确保Rigidbody组件存在且不为空
+        // 确保怪物有正确的标签
+        gameObject.tag = "Monster";
+        
+        // 确保Rigidbody组件存在
         rb = GetComponent<Rigidbody>();
         if (rb == null)
         {
             rb = gameObject.AddComponent<Rigidbody>();
         }
+        
         // 初始化刚体设置
         rb.useGravity = false;
         rb.constraints = RigidbodyConstraints.FreezeRotation;
-        
-        // 移除可能导致冲突的动画组件（如果存在）
-        Animator anim = GetComponent<Animator>();
-        if (anim != null)
-        {
-            Destroy(anim); // 避免未配置的动画器导致空引用
-        }
     }
 
     public void StartFalling(Vector3 targetPosition, System.Action<GameObject> returnCallback)
@@ -56,7 +53,7 @@ public class MonsterController : MonoBehaviour
             // 应用下落重力
             rb.velocity += Vector3.down * fallGravity * Time.fixedDeltaTime;
             
-            // 检测是否接触地面（使用射线检测更可靠）
+            // 检测是否接触地面
             CheckGrounded();
             if (isGrounded)
             {
@@ -65,15 +62,14 @@ public class MonsterController : MonoBehaviour
         }
     }
 
-    // 射线检测：判断是否接触地面
     private void CheckGrounded()
     {
         // 从怪物位置向下发射短射线检测地面
-        float checkDistance = 0.3f; // 检测距离（根据怪物碰撞体大小调整）
+        float checkDistance = 0.3f;
         Ray ray = new Ray(transform.position + Vector3.up * 0.1f, Vector3.down);
         isGrounded = Physics.Raycast(ray, out RaycastHit hit, checkDistance, groundLayer);
         
-        // 如果检测到地面，更新目标落地位置为地面接触点
+        // 如果检测到地面，更新目标落地位置
         if (isGrounded)
         {
             targetLandPosition = hit.point;
@@ -88,7 +84,7 @@ public class MonsterController : MonoBehaviour
         // 强制设置位置到地面接触点
         transform.position = new Vector3(
             targetLandPosition.x,
-            targetLandPosition.y + 0.01f, // 轻微抬高避免与地面穿插
+            targetLandPosition.y + 0.01f,
             targetLandPosition.z
         );
         
@@ -97,21 +93,17 @@ public class MonsterController : MonoBehaviour
         if (bounceForce > 0)
         {
             rb.velocity = Vector3.up * bounceForce;
-            // 弹跳后重新启用重力，让其再次下落
             rb.useGravity = true;
         }
         else
         {
             FreezeRigidbody();
         }
-        
-        OnLanded();
     }
 
-    // 碰撞事件：当弹跳后再次落地时冻结
     private void OnCollisionEnter(Collision collision)
     {
-        // 仅在弹跳后检测到地面碰撞时冻结
+        // 弹跳后再次落地时冻结
         if (hasLanded && !isFalling && (groundLayer.value & (1 << collision.gameObject.layer)) != 0)
         {
             FreezeRigidbody();
@@ -123,11 +115,6 @@ public class MonsterController : MonoBehaviour
         rb.useGravity = false;
         rb.velocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
-        rb.constraints = RigidbodyConstraints.FreezeAll; // 完全冻结
-    }
-
-    protected virtual void OnLanded()
-    {
-        Debug.Log($"怪物已落地：{transform.position}");
+        rb.constraints = RigidbodyConstraints.FreezeAll;
     }
 }
