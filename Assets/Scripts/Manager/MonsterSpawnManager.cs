@@ -121,7 +121,7 @@ public class MonsterSpawnManager : MonoBehaviour
         Bounds bounds = planeRenderer.bounds;
         return new Vector3(
             Random.Range(bounds.min.x, bounds.max.x),
-            0.5f,
+            0.1f, // 修改为0.1f
             Random.Range(bounds.min.z, bounds.max.z)
         );
     }
@@ -141,7 +141,9 @@ public class MonsterSpawnManager : MonoBehaviour
             warning = warningPool.Dequeue();
         }
 
-        warning.transform.position = position;
+        // 确保Y轴位置为0.1
+        Vector3 finalPosition = new Vector3(position.x, 0.1f, position.z);
+        warning.transform.position = finalPosition;
         warning.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
         warning.SetActive(true);
         activeWarnings.Add(warning);
