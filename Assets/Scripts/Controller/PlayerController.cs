@@ -26,7 +26,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private Transform bombContainer;
 
     [Header("Character Reference")]
-    [SerializeField] private CharacterController characterController;
+    [SerializeField] private ActorController characterController;
    
     private List<GameObject> activeBombs = new List<GameObject>();
     private Camera mainCamera;

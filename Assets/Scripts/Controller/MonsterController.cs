@@ -2,58 +2,92 @@ using UnityEngine;
 
 public class MonsterController : MonoBehaviour
 {
+    // 添加落地事件
+    public event System.Action OnMonsterLanded;
+    
+    // 使用属性确保安全访问
+    private RuntimeMonsterStats _stats;
+    public RuntimeMonsterStats Stats {
+        get => _stats;
+        private set {
+            _stats = value;
+            // 确保Stats不为空
+            if (_stats == null)
+            {
+                Debug.LogWarning($"MonsterController.Stats设置为空 ({gameObject.name})");
+            }
+        }
+    }
+    
     [Header("掉落设置")]
-    [Tooltip("掉落时的重力")]
     public float fallGravity = 9.8f;
-    [Tooltip("落地时的弹跳力")]
     public float bounceForce = 1f;
-    [Tooltip("地面检测层级（需在Layers中设置Ground层）")]
     public LayerMask groundLayer;
-
+    
     private Rigidbody rb;
     private Vector3 targetLandPosition;
     private bool isFalling = false;
     private bool hasLanded = false;
     private bool isGrounded = false;
+    private Collider monsterCollider;
 
     private void Awake()
     {
-        // 确保怪物有正确的标签
+        // 确保标签
         gameObject.tag = "Monster";
         
-        // 确保Rigidbody组件存在
+        // 获取组件
         rb = GetComponent<Rigidbody>();
+        monsterCollider = GetComponent<Collider>();
+        
+        // 自动添加Rigidbody（如果缺失）
         if (rb == null)
         {
             rb = gameObject.AddComponent<Rigidbody>();
+            Debug.LogWarning($"为 {gameObject.name} 自动添加了 Rigidbody 组件");
         }
         
         // 初始化刚体设置
         rb.useGravity = false;
         rb.constraints = RigidbodyConstraints.FreezeRotation;
+        
+        // 初始禁用碰撞器
+        if (monsterCollider != null)
+            monsterCollider.enabled = false;
+        else
+            Debug.LogWarning($"怪物缺少碰撞器组件 ({gameObject.name})");
     }
-
-    public void StartFalling(Vector3 targetPosition, System.Action<GameObject> returnCallback)
+    
+    public void Initialize(RuntimeMonsterStats stats)
     {
+        this.Stats = stats;
+    }
+    
+    public void StartFalling(Vector3 targetPosition, RuntimeMonsterStats stats)
+    {
+        // 设置运行时状态
+        this.Stats = stats;
+        
         targetLandPosition = targetPosition;
         isFalling = true;
         hasLanded = false;
         isGrounded = false;
         
         // 启用碰撞器
-        Collider col = GetComponent<Collider>();
-        if (col != null)
-            col.enabled = true;
+        if (monsterCollider != null)
+            monsterCollider.enabled = true;
     }
 
     private void FixedUpdate()
     {
         if (isFalling && !hasLanded)
         {
-            // 应用下落重力
-            rb.velocity += Vector3.down * fallGravity * Time.fixedDeltaTime;
+            // 安全访问Rigidbody
+            if (rb != null)
+            {
+                rb.velocity += Vector3.down * fallGravity * Time.fixedDeltaTime;
+            }
             
-            // 检测是否接触地面
             CheckGrounded();
             if (isGrounded)
             {
@@ -64,12 +98,10 @@ public class MonsterController : MonoBehaviour
 
     private void CheckGrounded()
     {
-        // 从怪物位置向下发射短射线检测地面
         float checkDistance = 0.3f;
         Ray ray = new Ray(transform.position + Vector3.up * 0.1f, Vector3.down);
         isGrounded = Physics.Raycast(ray, out RaycastHit hit, checkDistance, groundLayer);
         
-        // 如果检测到地面，更新目标落地位置
         if (isGrounded)
         {
             targetLandPosition = hit.point;
@@ -81,29 +113,35 @@ public class MonsterController : MonoBehaviour
         hasLanded = true;
         isFalling = false;
         
-        // 强制设置位置到地面接触点
+        // 设置位置
         transform.position = new Vector3(
             targetLandPosition.x,
             targetLandPosition.y + 0.01f,
             targetLandPosition.z
         );
         
-        // 清除速度，应用弹跳
-        rb.velocity = Vector3.zero;
-        if (bounceForce > 0)
+        // 安全访问Rigidbody
+        if (rb != null)
         {
-            rb.velocity = Vector3.up * bounceForce;
-            rb.useGravity = true;
+            // 弹跳逻辑
+            rb.velocity = Vector3.zero;
+            if (bounceForce > 0)
+            {
+                rb.velocity = Vector3.up * bounceForce;
+                rb.useGravity = true;
+            }
+            else
+            {
+                FreezeRigidbody();
+            }
         }
-        else
-        {
-            FreezeRigidbody();
-        }
+        
+        // 触发落地事件
+        OnMonsterLanded?.Invoke();
     }
 
     private void OnCollisionEnter(Collision collision)
     {
-        // 弹跳后再次落地时冻结
         if (hasLanded && !isFalling && (groundLayer.value & (1 << collision.gameObject.layer)) != 0)
         {
             FreezeRigidbody();
@@ -112,9 +150,43 @@ public class MonsterController : MonoBehaviour
 
     private void FreezeRigidbody()
     {
-        rb.useGravity = false;
-        rb.velocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
-        rb.constraints = RigidbodyConstraints.FreezeAll;
+        // 安全访问Rigidbody
+        if (rb != null)
+        {
+            rb.useGravity = false;
+            rb.velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.constraints = RigidbodyConstraints.FreezeAll;
+        }
+    }
+    
+    // 返回对象池方法
+    public void ReturnToPool()
+    {
+        // 重置状态
+        isFalling = false;
+        hasLanded = false;
+        isGrounded = false;
+        
+        // 重置刚体
+        FreezeRigidbody();
+        
+        // 禁用碰撞器
+        if (monsterCollider != null)
+            monsterCollider.enabled = false;
+        
+        // 清除所有事件订阅者
+        OnMonsterLanded = null;
+        
+        // 通知生成管理器
+        if (MonsterSpawnManager.Instance != null)
+        {
+            MonsterSpawnManager.Instance.ReturnMonsterToPool(gameObject);
+        }
+        else
+        {
+            Debug.LogWarning("MonsterSpawnManager 实例为空，直接销毁怪物");
+            Destroy(gameObject);
+        }
     }
 }

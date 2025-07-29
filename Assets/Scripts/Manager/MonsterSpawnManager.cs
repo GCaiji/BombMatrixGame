@@ -7,6 +7,9 @@ public class MonsterSpawnManager : MonoBehaviour
     [Header("生成设置")]
     public float spawnInterval = 5f;
     public float warningTime = 2f;
+    
+    [Header("怪物配置")]
+    public MonsterStats monsterStats; // 可在Inspector中配置
 
     [Header("对象池设置")]
     public int warningPoolSize = 10;
@@ -26,8 +29,19 @@ public class MonsterSpawnManager : MonoBehaviour
     private List<GameObject> activeWarnings = new List<GameObject>();
     private List<GameObject> activeMonsters = new List<GameObject>();
 
+    public static MonsterSpawnManager Instance { get; private set; }
+    
     private void Start()
     {
+        if (Instance == null)
+        {
+            Instance = this;
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+        
         if (mapPlane != null)
         {
             planeRenderer = mapPlane.GetComponent<Renderer>();
@@ -158,36 +172,68 @@ public class MonsterSpawnManager : MonoBehaviour
 
     private void SpawnMonster(Vector3 position)
     {
-        if (monsterPrefab == null) return;
-
-        GameObject monster = null;
-        if (monsterPool.Count > 0)
+        if (monsterPrefab == null) 
         {
-            monster = monsterPool.Dequeue();
-        }
-        else
-        {
-            CreateNewMonsterInstance();
-            monster = monsterPool.Dequeue();
+            Debug.LogError("怪物预制体未设置!");
+            return;
         }
 
+        // 从对象池获取怪物实例
+        GameObject monster = GetMonsterFromPool();
+    
+        // 确保位置正确 - 从10米高空开始掉落
         Vector3 spawnPos = new Vector3(position.x, 10f, position.z);
         monster.transform.position = spawnPos;
         monster.SetActive(true);
         activeMonsters.Add(monster);
 
+        // 获取MonsterController组件
         MonsterController monsterController = monster.GetComponent<MonsterController>();
-        if (monsterController != null)
+        if (monsterController == null)
         {
-            monsterController.StartFalling(position, ReturnMonsterToPool);
+            Debug.LogError($"怪物预制体 {monster.name} 缺少 MonsterController 组件");
+            StartCoroutine(DelayedReturnMonster(monster));
+            return;
+        }
+    
+        // 准备基础配置 - 替换掉原报错的 GetRandomMonsterStats 调用
+        MonsterStats baseStats = GetMonsterConfiguration();  // 第187行修改
+    
+        if (baseStats != null)
+        {
+            // 创建运行时状态
+            RuntimeMonsterStats runtimeStats = baseStats.CreateRuntimeStats();
+        
+            // 启动掉落
+            monsterController.StartFalling(position, runtimeStats);
         }
         else
         {
+            Debug.LogError("怪物配置获取失败");
             StartCoroutine(DelayedReturnMonster(monster));
         }
     }
-
-    // 公共方法供预警圈控制器调用
+    private MonsterStats GetMonsterConfiguration()
+    {
+        // 简单实现：直接返回基础配置（根据需求扩展）
+        if (monsterStats != null)
+        {
+            return monsterStats;
+        }
+        Debug.LogError("未配置任何怪物数据!");
+        return null;
+    }
+    
+    private GameObject GetMonsterFromPool()
+    {
+        if (monsterPool.Count > 0)
+        {
+            return monsterPool.Dequeue();
+        }
+        
+        CreateNewMonsterInstance();
+        return monsterPool.Dequeue();
+    }
     public void ReturnWarningToPool(GameObject warning)
     {
         if (warning == null) return;
