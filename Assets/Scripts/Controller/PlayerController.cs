@@ -33,7 +33,7 @@ public class PlayerController : MonoBehaviour
     private float currentSpeed;
     private float speedSmoothVelocity;
     private float speedBufferTimer;
-    private bool isEmergencyStop = false;  // 新增急停状态标志位
+    private bool isEmergencyStop = false;
 
     void Awake()
     {
@@ -43,18 +43,25 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
+        if (characterController == null) return;
+        
+        if (characterController.RuntimeStats.CurrentHealth <= 0 || characterController.IsHitAnimationPlaying)
+        {
+            StopMovement();
+            return;
+        }
+
         HandleEmergencyStop();  
         HandleMovementInput();
         UpdateDestinationMarker();
         UpdateAnimationState();
         HandleRotation();
         HandleBombPlacement();
-        HandleBombRadiusIncrease(); // 新增：处理炸弹范围增加
+        HandleBombRadiusIncrease();
     }
 
     void Start()
     {
-        // 改为在Start中进行检查
         if (GameManager.Instance == null)
         {
             Debug.LogError("GameManager 实例未找到！");
@@ -62,8 +69,14 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        // 移动速度设置也移到Start
-        agent.speed = characterController.Stats.MoveSpeed;
+        if (characterController == null)
+        {
+            Debug.LogError("ActorController未赋值！");
+            enabled = false;
+            return;
+        }
+
+        agent.speed = characterController.RuntimeStats.MoveSpeed;
     }
 
     private void InitializeComponents()
@@ -89,7 +102,7 @@ public class PlayerController : MonoBehaviour
 
     private void HandleMovementInput()
     {
-        if (isEmergencyStop) return;  // 如果处于急停状态，禁止移动操作
+        if (isEmergencyStop) return;
 
         if (Input.GetMouseButtonDown(1))
         {
@@ -132,25 +145,31 @@ public class PlayerController : MonoBehaviour
         if (shouldShow) destinationMarker.transform.position = agent.destination;
     }
 
+    private void StopMovement()
+    {
+        agent.ResetPath();
+        agent.velocity = Vector3.zero;
+        animator.SetBool("IsMoving", false);
+        animator.SetFloat("Speed", 0f);
+        currentSpeed = 0f;
+        speedBufferTimer = 0f;
+        destinationMarker.SetActive(false);
+    }
+
     private void UpdateAnimationState()
     {
-        // 获取导航系统状态
         bool isAgentStopped = agent.isStopped || agent.remainingDistance <= stopThreshold;
-    
-        // 优化1：使用更精准的速度判断逻辑
         float actualSpeed = isAgentStopped ? 0 : agent.velocity.magnitude;
         bool isActuallyMoving = actualSpeed > speedTriggerThreshold;
-        float characterRunSpeed =agent.speed;
-        // 优化2：分层缓冲控制
+        float characterRunSpeed = agent.speed;
+
         if (isActuallyMoving)
         {
-            // 移动时立即重置计时器（无缓冲）
             speedBufferTimer = 0;
             animator.SetBool("IsMoving", true);
         }
         else
         {
-            // 停止时启动缓冲倒计时
             speedBufferTimer += Time.deltaTime;
             if (speedBufferTimer >= speedBufferTime)
             {
@@ -158,7 +177,6 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        // 优化3：动态速度计算
         float targetSpeed = animator.GetBool("IsMoving") ? 
             Mathf.Clamp01(actualSpeed / characterRunSpeed) : 
             0f;
@@ -188,19 +206,18 @@ public class PlayerController : MonoBehaviour
 
     private void HandleBombPlacement()
     {
-        // 清理已销毁的炸弹引用
         activeBombs.RemoveAll(b => b == null);
 
-        // 检查是否按下左键或A键
+        if (characterController.IsHitAnimationPlaying)
+            return;
+
         if (Input.GetMouseButtonDown(0) || Input.GetKeyDown(KeyCode.A))
         {
-            if (activeBombs.Count >= characterController.Stats.MaxBombs)
+            if (activeBombs.Count >= characterController.BaseStats.MaxBombs)
             {
                 Debug.Log($"炸弹数量已达上限 (当前时间戳: {Time.time:F2})");
                 return;
             }
-
-            Debug.Log($"放置炸弹 (当前时间戳: {Time.time:F2})");
 
             Vector3 spawnPos = transform.position;
             spawnPos.y = 0;
@@ -239,6 +256,9 @@ public class PlayerController : MonoBehaviour
 
     private void HandleBombRadiusIncrease()
     {
+        if (characterController.IsHitAnimationPlaying)
+            return;
+
         if (Input.GetKeyDown(KeyCode.D))
         {
             if (GameManager.Instance != null && GameManager.Instance.CurrentBombStats != null)

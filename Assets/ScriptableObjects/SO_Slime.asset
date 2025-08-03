@@ -12,8 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4a9f613d170d7c94a8e5d35f28912481, type: 3}
   m_Name: SO_Slime
   m_EditorClassIdentifier: 
-  maxHealth: 1
+  maxHealth: 2
   attackDamage: 1
   moveSpeed: 1
   attackCooldown: 0.1
-  currentHealth: 0

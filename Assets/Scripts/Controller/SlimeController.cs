@@ -2,67 +2,50 @@ using UnityEngine;
 using System.Collections;
 
 [RequireComponent(typeof(MonsterController))]
-public class SlimeController : MonoBehaviour
+public class SlimeController : MonoBehaviour, IDamageable
 {
-    // 添加动画触发器常量
-    private static readonly int IdleTrigger = Animator.StringToHash("Idle");
-    private static readonly int HitTrigger = Animator.StringToHash("Hit");
-    private static readonly int DieTrigger = Animator.StringToHash("Die");
+    // 动画参数定义
+    private static readonly int IsHitParam = Animator.StringToHash("IsHit");
+    private static readonly int IsDeadParam = Animator.StringToHash("IsDead");
 
     private Animator animator;
     private MonsterController monsterController;
-    private bool hasLanded = false;  // 新增：标记是否已经落地
+    private Coroutine _hitAnimationCoroutine; // 受击动画协程控制
+    private bool hasLanded = false; // 标记是否已经落地
     
     void Start()
     {
         animator = GetComponent<Animator>();
         monsterController = GetComponent<MonsterController>();
-        
-        // 安全订阅事件 - 使用协程等待Stats初始化
         StartCoroutine(SubscribeToEventsAfterInitialization());
     }
     
     private IEnumerator SubscribeToEventsAfterInitialization()
     {
-        // 等待直到Stats被初始化
         int maxAttempts = 10;
         int attempts = 0;
         
         while (monsterController.Stats == null && attempts < maxAttempts)
         {
             attempts++;
-            yield return null; // 等待一帧
+            yield return null;
         }
         
-        // 安全订阅死亡事件
         if (monsterController.Stats != null)
         {
             monsterController.Stats.OnMonsterDeath += HandleMonsterDeath;
-            monsterController.OnMonsterLanded += OnSlimeLanded;  // 新增：订阅落地事件
-        }
-        else
-        {
-            Debug.LogWarning($"无法订阅事件: Stats未初始化 ({gameObject.name})");
+            monsterController.OnMonsterLanded += OnSlimeLanded;
         }
     }
 
     private void OnSlimeLanded()
     {
-        if (hasLanded) return;  // 如果已经落地过，直接返回
-        
-        hasLanded = true;  // 标记已落地
-        
-        if (monsterController.Stats != null)
-        {
-            Debug.Log($"[Slime状态] {gameObject.name}已落地 | " +
-                     $"生命值: {monsterController.Stats.CurrentHealth}/{monsterController.Stats.MaxHealth} | " +
-                     $"攻击力: {monsterController.Stats.AttackDamage}");
-        }
+        if (hasLanded) return;
+        hasLanded = true;
     }
     
     void OnDisable()
     {
-        // 在禁用时执行清理
         SafeUnsubscribeEvents();
     }
     
@@ -73,54 +56,55 @@ public class SlimeController : MonoBehaviour
     
     private void SafeUnsubscribeEvents()
     {
-        // 安全取消订阅
         if (monsterController != null)
         {
             if (monsterController.Stats != null)
             {
                 monsterController.Stats.OnMonsterDeath -= HandleMonsterDeath;
             }
-            monsterController.OnMonsterLanded -= OnSlimeLanded;  // 新增：取消订阅落地事件
+            monsterController.OnMonsterLanded -= OnSlimeLanded;
         }
     }
     
     private void OnTriggerEnter(Collider other)
     {
-        // 检查是否与玩家碰撞且怪物状态正常
         if (other.CompareTag("Player") && monsterController != null && monsterController.Stats != null)
         {
-            // 受到伤害
             monsterController.Stats.TakeDamage(1);
-
-            // 如果怪物死亡，直接播放死亡动画
-            if (monsterController.Stats.IsDead)
-            {
-                animator.SetTrigger(DieTrigger);
-            }
-            // 否则播放受击动画
-            else
-            {
-                animator.SetTrigger(HitTrigger);
-            }
+            PlayHitAnimation(0.5f); // 统一使用动画协程处理
         }
+    }
+    
+    // 删除OnTriggerExit方法，由动画协程统一控制结束
+    
+    // 动画事件回调方法（保留用于可能的其他用途）
+    public void OnHitAnimationComplete()
+    {
+        // 可能不需要具体实现，保留接口
     }
     
     private void HandleMonsterDeath()
     {
-        // 播放死亡动画
-        animator.SetTrigger(DieTrigger);
+        if (animator != null)
+        {
+            animator.SetBool(IsHitParam, false); // 确保停止受击状态
+            animator.SetBool(IsDeadParam, true);
+        }
         
-        // ===== 新增：死亡信息输出 =====
-        Debug.Log($"[Slime死亡] {gameObject.name}已被消灭！");
+        // 取消所有可能正在进行的动画协程
+        if (_hitAnimationCoroutine != null)
+        {
+            StopCoroutine(_hitAnimationCoroutine);
+            _hitAnimationCoroutine = null;
+        }
         
-        StartCoroutine(DelayedReturnToPool(1.0f)); // 增加延迟时间以确保死亡动画播放完成
+        StartCoroutine(DelayedReturnToPool(1.0f));
     }
     
     IEnumerator DelayedReturnToPool(float delay)
     {
         yield return new WaitForSeconds(delay);
         
-        // 安全返回对象池
         if (monsterController != null)
         {
             monsterController.ReturnToPool();
@@ -129,5 +113,46 @@ public class SlimeController : MonoBehaviour
         {
             Destroy(gameObject);
         }
+    }
+
+    public bool IsAlive => monsterController != null && monsterController.Stats != null && !monsterController.Stats.IsDead;
+
+    public void TakeDamage(int damageAmount)
+    {
+        if (monsterController != null && monsterController.Stats != null)
+        {
+            monsterController.Stats.TakeDamage(damageAmount);
+            PlayHitAnimation(0.5f); // 统一使用动画协程处理
+        }
+    }
+
+    // 统一处理受击动画的方法（适用于所有伤害源）
+    private void PlayHitAnimation(float duration)
+    {
+        if (!IsAlive || animator == null) return;
+        
+        // 停止之前的动画协程（防止重复叠加）
+        if (_hitAnimationCoroutine != null)
+        {
+            StopCoroutine(_hitAnimationCoroutine);
+        }
+        
+        // 设置为受击状态
+        animator.SetBool(IsHitParam, true);
+        
+        // 启动新的协程控制动画时间
+        _hitAnimationCoroutine = StartCoroutine(StopHitAnimationAfterDelay(duration));
+    }
+    
+    // 受击动画协程（控制动画播放时间）
+    private IEnumerator StopHitAnimationAfterDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        
+        if (animator != null && IsAlive)
+        {
+            animator.SetBool(IsHitParam, false);
+        }
+        _hitAnimationCoroutine = null;
     }
 }
