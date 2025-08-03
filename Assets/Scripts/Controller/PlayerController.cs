@@ -45,7 +45,8 @@ public class PlayerController : MonoBehaviour
     {
         if (characterController == null) return;
         
-        if (characterController.RuntimeStats.CurrentHealth <= 0 || characterController.IsHitAnimationPlaying)
+        // 修改：使用IsInvincible代替已删除的IsHitAnimationPlaying
+        if (characterController.RuntimeStats.CurrentHealth <= 0 || characterController.IsInvincible)
         {
             StopMovement();
             return;
@@ -208,7 +209,8 @@ public class PlayerController : MonoBehaviour
     {
         activeBombs.RemoveAll(b => b == null);
 
-        if (characterController.IsHitAnimationPlaying)
+        // 修改：使用IsInvincible代替已删除的IsHitAnimationPlaying
+        if (characterController.IsInvincible)
             return;
 
         if (Input.GetMouseButtonDown(0) || Input.GetKeyDown(KeyCode.A))
@@ -256,7 +258,8 @@ public class PlayerController : MonoBehaviour
 
     private void HandleBombRadiusIncrease()
     {
-        if (characterController.IsHitAnimationPlaying)
+        // 修改：使用IsInvincible代替已删除的IsHitAnimationPlaying
+        if (characterController.IsInvincible)
             return;
 
         if (Input.GetKeyDown(KeyCode.D))

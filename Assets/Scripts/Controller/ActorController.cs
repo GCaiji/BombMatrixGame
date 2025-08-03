@@ -3,22 +3,26 @@ using UnityEngine;
 [RequireComponent(typeof(Animator))]
 [RequireComponent(typeof(Collider))]
 [RequireComponent(typeof(Rigidbody))]
-public class ActorController : MonoBehaviour
+public class ActorController : MonoBehaviour, IDamageable
 {
+    [Header("Character Stats")]
     [SerializeField] private CharacterStats baseStats;
     [SerializeField] private int monsterDamage = 1;
+    [SerializeField] private int bombDamage = 1;
     [SerializeField] private float damageCooldown = 0.5f;
+    
+    [Header("Hit Animation")]
+    [SerializeField] private float bombHitDuration = 0.5f;
+    
     private RuntimeCharacterStats runtimeStats;
     private Animator animator;
     private bool isDead = false;
     private bool canTakeDamage = true;
     private int affectedLayerIndex = 1;
-    private bool isHitAnimationPlaying = false;
-
-    // 修改：只判断是否处于无敌状态
+    private Coroutine _hitAnimationCoroutine;
+    
     public bool IsInvincible => runtimeStats.IsInvincible;
-    public bool IsHitAnimationPlaying => isHitAnimationPlaying;
-
+    
     private static readonly int HitTrigger = Animator.StringToHash("IsHit");
     private static readonly int DeathBool = Animator.StringToHash("IsDead");
     private static readonly int Speed = Animator.StringToHash("Speed");
@@ -33,7 +37,24 @@ public class ActorController : MonoBehaviour
         animator = GetComponent<Animator>();
         InitializeStats();
         InitializeAnimator();
-        Debug.Log($"角色碰撞配置完成 - 触发器状态: {GetComponent<Collider>().isTrigger}");
+    }
+    
+    void OnEnable()
+    {
+        // 订阅爆炸事件
+        if (BombManager.Instance != null)
+        {
+            BombManager.OnExplosion += HandleBombExplosion;
+        }
+    }
+    
+    void OnDisable()
+    {
+        // 取消订阅爆炸事件
+        if (BombManager.Instance != null)
+        {
+            BombManager.OnExplosion -= HandleBombExplosion;
+        }
     }
 
     private void ConfigureCollisionComponents()
@@ -42,7 +63,6 @@ public class ActorController : MonoBehaviour
         if (collider == null)
         {
             collider = gameObject.AddComponent<CapsuleCollider>();
-            Debug.LogWarning("自动添加CapsuleCollider");
         }
         collider.isTrigger = true;
         collider.enabled = true;
@@ -51,7 +71,6 @@ public class ActorController : MonoBehaviour
         if (rb == null)
         {
             rb = gameObject.AddComponent<Rigidbody>();
-            Debug.LogWarning("自动添加Rigidbody");
         }
         rb.isKinematic = true;
         rb.useGravity = false;
@@ -74,7 +93,6 @@ public class ActorController : MonoBehaviour
         else
         {
             runtimeStats = baseStats.CreateRuntimeStats();
-            Debug.Log($"初始生命值: {runtimeStats.CurrentHealth}");
         }
     }
 
@@ -95,11 +113,37 @@ public class ActorController : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        
         if (other.gameObject.CompareTag("Monster") && !isDead && canTakeDamage)
         {
-            Debug.Log("检测到Monster碰撞");
             TakeDamage(monsterDamage);
+            StartCoroutine(DamageCooldown());
+        }
+        // 炸弹接触伤害
+        else if (other.gameObject.CompareTag("Bomb") && !isDead && canTakeDamage)
+        {
+            BombController bomb = other.GetComponent<BombController>();
+            if (bomb != null && bomb.IsAboutToExplode())
+            {
+                TakeDamage(bombDamage);
+                StartCoroutine(DamageCooldown());
+            }
+        }
+    }
+    
+    // 处理炸弹爆炸伤害
+    private void HandleBombExplosion(Vector3 explosionPosition, float explosionRadius)
+    {
+        if (isDead || !canTakeDamage) return;
+        
+        // 计算距离并检查是否在爆炸范围内
+        float distance = Vector3.Distance(transform.position, explosionPosition);
+        if (distance <= explosionRadius)
+        {
+            // 根据距离计算伤害衰减
+            float damageMultiplier = Mathf.Clamp01(1 - (distance / explosionRadius));
+            int calculatedDamage = Mathf.CeilToInt(bombDamage * damageMultiplier);
+            
+            TakeDamage(calculatedDamage);
             StartCoroutine(DamageCooldown());
         }
     }
@@ -113,19 +157,13 @@ public class ActorController : MonoBehaviour
 
     public void TakeDamage(int damage)
     {
-        if (isDead) return;
+        if (isDead || !canTakeDamage) return;
         
         bool isDamaged = runtimeStats.TakeDamage(damage);
-        if (!isDamaged)
-        {
-            Debug.Log("处于无敌状态，未受伤害");
-            return;
-        }
-
-        Debug.Log($"受到 {damage} 点伤害! 当前生命值: {runtimeStats.CurrentHealth}/{runtimeStats.MaxHealth}");
-
+        if (!isDamaged) return;
+        
         PlayHitAnimation();
-
+        
         if (runtimeStats.CurrentHealth <= 0)
         {
             Die();
@@ -134,51 +172,55 @@ public class ActorController : MonoBehaviour
 
     private void PlayHitAnimation()
     {
-        if (animator.layerCount <= affectedLayerIndex) return;
-
-        isHitAnimationPlaying = true;
+        if (animator == null || animator.layerCount <= affectedLayerIndex || isDead) return;
+        
+        // 停止之前的动画协程
+        if (_hitAnimationCoroutine != null)
+        {
+            StopCoroutine(_hitAnimationCoroutine);
+        }
+        
+        // 播放受击动画
         animator.SetLayerWeight(affectedLayerIndex, 1f);
         animator.SetTrigger(HitTrigger);
-
-        StopCoroutine(ResetHitLayer());
-        StartCoroutine(ResetHitLayer());
-    }
-
-    private System.Collections.IEnumerator ResetHitLayer()
-    {
-        yield return new WaitForSeconds(0.5f);
         
-        if (!isDead)
+        // 启动新的协程控制动画结束
+        _hitAnimationCoroutine = StartCoroutine(ResetHitLayerAfterDelay());
+    }
+    
+    private System.Collections.IEnumerator ResetHitLayerAfterDelay()
+    {
+        yield return new WaitForSeconds(bombHitDuration);
+        
+        if (!isDead && animator != null && animator.layerCount > affectedLayerIndex)
         {
             animator.SetLayerWeight(affectedLayerIndex, 0f);
-            isHitAnimationPlaying = false;
         }
+        
+        _hitAnimationCoroutine = null;
     }
 
     private void Die()
     {
         if (isDead) return;
         isDead = true;
-
-        Debug.Log("角色死亡");
-
+        
         animator.SetBool(DeathBool, true);
-        if (animator.layerCount > affectedLayerIndex)
-        {
-            animator.SetLayerWeight(affectedLayerIndex, 1f);
-        }
-
+        
         if (TryGetComponent<Collider>(out var collider))
             collider.enabled = false;
-    }
-
-    public void OnHitAnimationEnd()
-    {
-        if (!isDead && animator.layerCount > affectedLayerIndex)
+            
+        // 停止所有协程
+        if (_hitAnimationCoroutine != null)
         {
-            animator.SetLayerWeight(affectedLayerIndex, 0f);
-            isHitAnimationPlaying = false;
+            StopCoroutine(_hitAnimationCoroutine);
+            _hitAnimationCoroutine = null;
+        }
+        
+        // 移除事件订阅
+        if (BombManager.Instance != null)
+        {
+            BombManager.OnExplosion -= HandleBombExplosion;
         }
     }
 }
-

@@ -11,18 +11,21 @@ public class BombController : MonoBehaviour
     [Header("Damage Settings")]
     [SerializeField] private LayerMask damageableLayers;
     
-    private RuntimeBombStats _runtimeBombStats; // 修改为运行时炸弹数据
+    private RuntimeBombStats _runtimeBombStats;
     private Animator _bombAnimator;
     private float _timer;
     private bool _hasExploded;
     private bool _isDestroyed;
 
+    public bool IsAboutToExplode() => _timer < 0.5f;
+
     void Start()
     {
-        // 仅保留其他组件的初始化逻辑
+        // 初始组件检查
+        if (_bombAnimator == null) _bombAnimator = GetComponent<Animator>();
     }
 
-    public void Initialize(RuntimeBombStats runtimeStats) // 新的 Initialize 方法
+    public void Initialize(RuntimeBombStats runtimeStats)
     {
         if (runtimeStats == null)
         {
@@ -31,10 +34,9 @@ public class BombController : MonoBehaviour
             return;
         }
 
-        _runtimeBombStats = runtimeStats; // 赋值运行时炸弹数据
-        _timer = _runtimeBombStats.FuseTime; // 设置计时器
+        _runtimeBombStats = runtimeStats;
+        _timer = _runtimeBombStats.FuseTime;
 
-        // 在此处获取 Animator 组件，确保动画状态已设置完成
         if (_bombAnimator == null)
         {
             _bombAnimator = GetComponent<Animator>();
@@ -46,8 +48,8 @@ public class BombController : MonoBehaviour
             }
         }
 
-        _bombAnimator.Play("Ignite"); // 播放点燃动画
-        PlayParticles(); // 播放粒子效果
+        _bombAnimator.Play("Ignite");
+        PlayParticles();
     }
 
     void Update()
@@ -67,7 +69,8 @@ public class BombController : MonoBehaviour
         Collider[] hits = Physics.OverlapSphere(
             transform.position,
             _runtimeBombStats.ExplosionRadius,
-            damageableLayers
+            damageableLayers,
+            QueryTriggerInteraction.Collide // 包含触发器
         );
 
         Vector3 explosionPos = transform.position;
@@ -84,9 +87,9 @@ public class BombController : MonoBehaviour
                 IDamageable damageable = hit.GetComponent<IDamageable>();
                 if (damageable != null)
                 {
-                    damageable.TakeDamage(1); // 对怪物造成1点伤害
+                    damageable.TakeDamage(1);
                 }
-                continue; // 如果是怪物，跳过后续处理
+                continue;
             }
 
             // 处理其他可受伤物体
@@ -107,12 +110,17 @@ public class BombController : MonoBehaviour
             Debug.LogError("[BombController] GroundManager实例未找到！");
         }
 
+        // 触发全局爆炸事件
+        if (BombManager.Instance != null)
+        {
+            BombManager.Instance.TriggerExplosionEvent(explosionPos, explosionRadius);
+        }
+
         StartCoroutine(DestroyAndUpdateGround(explosionPos, explosionRadius));
     }
 
     private IEnumerator DestroyAndUpdateGround(Vector3 explosionPos, float explosionRadius)
     {
-        // 开始销毁流程
         _isDestroyed = true;
         
         if(explosion != null)
@@ -121,16 +129,12 @@ public class BombController : MonoBehaviour
             explosion.Play();
         }
 
-        // 销毁炸弹对象
         Destroy(gameObject);
 
-        // 等待一帧确保对象被完全销毁
         yield return null;
 
-        // 更新地形和导航网格
         GroundManager.Instance?.DestroyTilesInRadius(explosionPos, explosionRadius);
 
-        // 处理剩余的爆炸特效
         if(explosion != null)
         {
             float duration = explosion.main.duration;
@@ -155,12 +159,11 @@ public class BombController : MonoBehaviour
         if (_runtimeBombStats != null)
         {
             Gizmos.color = Color.red;
-            Gizmos.DrawWireSphere(transform.position, _runtimeBombStats.ExplosionRadius); // 使用运行时数据
+            Gizmos.DrawWireSphere(transform.position, _runtimeBombStats.ExplosionRadius);
         }
     }
     #endif
 
-    // 动画事件方法
     public void OnExplosionEnd()
     {
         if (_isDestroyed || _bombAnimator == null) 
@@ -212,7 +215,7 @@ public class BombController : MonoBehaviour
         if(smoke != null) smoke.Stop();
     }
 
-    public void PlayExplosion() // 修正方法名大写
+    public void PlayExplosion()
     {
         if (_isDestroyed || explosion == null) return;
 
