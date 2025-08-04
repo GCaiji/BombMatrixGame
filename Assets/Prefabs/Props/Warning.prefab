@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 2920069831332170721}
   - component: {fileID: 880645480729656524}
   - component: {fileID: 82193722776443507}
+  - component: {fileID: 6268527748501989705}
   m_Layer: 0
   m_Name: Warning
   m_TagString: Warning
@@ -63,7 +64,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  - {fileID: 2100000, guid: 9f51592ee95c35843bdca3caeecca6f1, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -119,3 +120,23 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9a86ce89947e97e4895676ae3a0e2860, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &6268527748501989705
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4967109385838568161}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 59f774f4688b8f64b8e838160d3fa7d7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  startProgress: 1
+  warningDuration: 3
+  maxFlashSpeed: 10
+  minFlashSpeed: 2
+  pulseSpeed: 2
+  maxScale: 1.5
+  minScale: 0.8
+  enablePulsing: 1
