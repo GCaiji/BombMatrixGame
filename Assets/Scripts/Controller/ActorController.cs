@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 [RequireComponent(typeof(Animator))]
 [RequireComponent(typeof(Collider))]
@@ -9,19 +10,25 @@ public class ActorController : MonoBehaviour, IDamageable
     [SerializeField] private CharacterStats baseStats;
     [SerializeField] private int monsterDamage = 1;
     [SerializeField] private int bombDamage = 1;
-    [SerializeField] private float damageCooldown = 0.5f;
+    [SerializeField] private float invincibleDuration = 1f;
     
     [Header("Hit Animation")]
     [SerializeField] private float bombHitDuration = 0.5f;
     
+    [Header("Hit Stun Settings")]
+    [SerializeField] private float hitStunDuration = 1f;
+
     private RuntimeCharacterStats runtimeStats;
     private Animator animator;
     private bool isDead = false;
-    private bool canTakeDamage = true;
+    private bool isInHitStun = false;
+    private bool isPlayingHitAnimation = false;
+
     private int affectedLayerIndex = 1;
-    private Coroutine _hitAnimationCoroutine;
     
     public bool IsInvincible => runtimeStats.IsInvincible;
+    public bool IsInHitStun => isInHitStun;
+    public bool IsActionDisabled => isInHitStun || isDead || isPlayingHitAnimation;
     
     private static readonly int HitTrigger = Animator.StringToHash("IsHit");
     private static readonly int DeathBool = Animator.StringToHash("IsDead");
@@ -41,7 +48,6 @@ public class ActorController : MonoBehaviour, IDamageable
     
     void OnEnable()
     {
-        // 订阅爆炸事件
         if (BombManager.Instance != null)
         {
             BombManager.OnExplosion += HandleBombExplosion;
@@ -50,7 +56,6 @@ public class ActorController : MonoBehaviour, IDamageable
     
     void OnDisable()
     {
-        // 取消订阅爆炸事件
         if (BombManager.Instance != null)
         {
             BombManager.OnExplosion -= HandleBombExplosion;
@@ -79,7 +84,7 @@ public class ActorController : MonoBehaviour, IDamageable
 
     void Update()
     {
-        if (isDead) return;
+        if (isDead || IsActionDisabled) return;
         runtimeStats.UpdateInvincibleState(Time.deltaTime);
     }
 
@@ -98,6 +103,8 @@ public class ActorController : MonoBehaviour, IDamageable
 
     private void InitializeAnimator()
     {
+        if (animator == null) return;
+        
         animator.SetBool(DeathBool, false);
         animator.SetFloat(Speed, 0);
 
@@ -113,91 +120,101 @@ public class ActorController : MonoBehaviour, IDamageable
 
     private void OnTriggerEnter(Collider other)
     {
-        if (other.gameObject.CompareTag("Monster") && !isDead && canTakeDamage)
+        if (IsActionDisabled || IsInvincible) return;
+
+        if (other.gameObject.CompareTag("Monster"))
         {
             TakeDamage(monsterDamage);
-            StartCoroutine(DamageCooldown());
         }
-        // 炸弹接触伤害
-        else if (other.gameObject.CompareTag("Bomb") && !isDead && canTakeDamage)
+        else if (other.gameObject.CompareTag("Bomb"))
         {
             BombController bomb = other.GetComponent<BombController>();
             if (bomb != null && bomb.IsAboutToExplode())
             {
                 TakeDamage(bombDamage);
-                StartCoroutine(DamageCooldown());
             }
         }
     }
     
-    // 处理炸弹爆炸伤害
     private void HandleBombExplosion(Vector3 explosionPosition, float explosionRadius)
     {
-        if (isDead || !canTakeDamage) return;
+        if (IsActionDisabled) return;
         
-        // 计算距离并检查是否在爆炸范围内
         float distance = Vector3.Distance(transform.position, explosionPosition);
         if (distance <= explosionRadius)
         {
-            // 根据距离计算伤害衰减
             float damageMultiplier = Mathf.Clamp01(1 - (distance / explosionRadius));
             int calculatedDamage = Mathf.CeilToInt(bombDamage * damageMultiplier);
             
             TakeDamage(calculatedDamage);
-            StartCoroutine(DamageCooldown());
         }
-    }
-
-    private System.Collections.IEnumerator DamageCooldown()
-    {
-        canTakeDamage = false;
-        yield return new WaitForSeconds(damageCooldown);
-        canTakeDamage = true;
     }
 
     public void TakeDamage(int damage)
     {
-        if (isDead || !canTakeDamage) return;
-        
-        bool isDamaged = runtimeStats.TakeDamage(damage);
+        if (IsActionDisabled) return;
+
+        bool isDamaged = runtimeStats.TakeDamage(damage, invincibleDuration);
         if (!isDamaged) return;
+
+        // 启动僵直状态
+        StartCoroutine(HitStunRoutine());
         
+        // 播放受击动画
         PlayHitAnimation();
-        
+
         if (runtimeStats.CurrentHealth <= 0)
         {
             Die();
         }
     }
+    
+    // 僵直状态协程
+    private IEnumerator HitStunRoutine()
+    {
+        // 设置状态
+        isInHitStun = true;
+        Debug.Log($"进入僵直状态，持续时间: {hitStunDuration}秒");
+        
+        // 等待僵直时间
+        yield return new WaitForSeconds(hitStunDuration);
+        
+        // 清理状态
+        isInHitStun = false;
+        Debug.Log("僵直状态结束，恢复行动能力");
+    }
 
+    // 播放受击动画
     private void PlayHitAnimation()
     {
         if (animator == null || animator.layerCount <= affectedLayerIndex || isDead) return;
-        
-        // 停止之前的动画协程
-        if (_hitAnimationCoroutine != null)
-        {
-            StopCoroutine(_hitAnimationCoroutine);
-        }
-        
-        // 播放受击动画
+
+        isPlayingHitAnimation = true;
         animator.SetLayerWeight(affectedLayerIndex, 1f);
         animator.SetTrigger(HitTrigger);
+        animator.SetFloat(Speed, 0);
+        animator.SetBool("IsMoving", false);
         
-        // 启动新的协程控制动画结束
-        _hitAnimationCoroutine = StartCoroutine(ResetHitLayerAfterDelay());
+        Debug.Log($"受击动画开始播放");
+        
+        // 启动协程重置动画状态
+        StartCoroutine(ResetHitAnimation());
     }
     
-    private System.Collections.IEnumerator ResetHitLayerAfterDelay()
+    // 重置受击动画状态
+    private IEnumerator ResetHitAnimation()
     {
+        // 等待完整的受击动画时间
         yield return new WaitForSeconds(bombHitDuration);
         
+        // 重置动画状态
         if (!isDead && animator != null && animator.layerCount > affectedLayerIndex)
         {
             animator.SetLayerWeight(affectedLayerIndex, 0f);
         }
         
-        _hitAnimationCoroutine = null;
+        isPlayingHitAnimation = false;
+        Debug.Log("受击动画结束");
     }
 
     private void Die()
@@ -205,17 +222,17 @@ public class ActorController : MonoBehaviour, IDamageable
         if (isDead) return;
         isDead = true;
         
-        animator.SetBool(DeathBool, true);
+        if (animator != null)
+        {
+            animator.SetBool(DeathBool, true);
+        }
         
         if (TryGetComponent<Collider>(out var collider))
             collider.enabled = false;
             
-        // 停止所有协程
-        if (_hitAnimationCoroutine != null)
-        {
-            StopCoroutine(_hitAnimationCoroutine);
-            _hitAnimationCoroutine = null;
-        }
+        // 重置所有状态
+        isInHitStun = false;
+        isPlayingHitAnimation = false;
         
         // 移除事件订阅
         if (BombManager.Instance != null)

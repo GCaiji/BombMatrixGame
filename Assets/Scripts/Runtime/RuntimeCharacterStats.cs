@@ -34,14 +34,14 @@ public class RuntimeCharacterStats
     }
 
     // 受伤方法
-    public bool TakeDamage(int damage)
+    public bool TakeDamage(int damage, float invincibleDuration)
     {
         if (IsInvincible) return false;
 
         CurrentHealth = Mathf.Max(0, CurrentHealth - damage);
         if (damage > 0)
         {
-            SetInvincible();
+            StartInvincible(invincibleDuration);
             Debug.Log($"角色受到 {damage} 点伤害! 当前生命值: {CurrentHealth}");
         }
         return true;
@@ -55,10 +55,10 @@ public class RuntimeCharacterStats
     }
 
     // 设置无敌状态
-    public void SetInvincible()
+    public void StartInvincible(float duration)
     {
         IsInvincible = true;
-        InvincibleTimer = InvincibleDuration;
+        InvincibleTimer = duration;
     }
 
     // 更新无敌状态
@@ -88,3 +88,4 @@ public class RuntimeCharacterStats
         CurrentBombCount = Mathf.Max(0, CurrentBombCount - 1);
     }
 }
+

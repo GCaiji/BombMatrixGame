@@ -34,6 +34,7 @@ public class PlayerController : MonoBehaviour
     private float speedSmoothVelocity;
     private float speedBufferTimer;
     private bool isEmergencyStop = false;
+    private bool wasActionDisabled = false;
 
     void Awake()
     {
@@ -45,8 +46,20 @@ public class PlayerController : MonoBehaviour
     {
         if (characterController == null) return;
         
-        // 修改：使用IsInvincible代替已删除的IsHitAnimationPlaying
-        if (characterController.RuntimeStats.CurrentHealth <= 0 || characterController.IsInvincible)
+        // 检查是否可行动
+        bool isActionDisabled = characterController.IsActionDisabled;
+        
+        // 状态变化检测
+        if (wasActionDisabled && !isActionDisabled)
+        {
+            // 状态恢复时重置代理
+            agent.isStopped = false;
+            Debug.Log("角色行动恢复，重置NavMeshAgent");
+        }
+        
+        wasActionDisabled = isActionDisabled;
+        
+        if (isActionDisabled)
         {
             StopMovement();
             return;
@@ -82,9 +95,12 @@ public class PlayerController : MonoBehaviour
 
     private void InitializeComponents()
     {  
-        destinationMarker.SetActive(false);
-        animator.SetFloat("Speed", 0f);
-        animator.SetBool("IsMoving", false);
+        if (destinationMarker != null) destinationMarker.SetActive(false);
+        if (animator != null)
+        {
+            animator.SetFloat("Speed", 0f);
+            animator.SetBool("IsMoving", false);
+        }
     }
 
     private void HandleEmergencyStop()
@@ -103,7 +119,10 @@ public class PlayerController : MonoBehaviour
 
     private void HandleMovementInput()
     {
-        if (isEmergencyStop) return;
+        if (isEmergencyStop || characterController.IsActionDisabled)
+        {
+            return;
+        }
 
         if (Input.GetMouseButtonDown(1))
         {
@@ -141,6 +160,8 @@ public class PlayerController : MonoBehaviour
 
     private void UpdateDestinationMarker()
     {
+        if (destinationMarker == null) return;
+        
         bool shouldShow = agent.remainingDistance > stopThreshold && !agent.pathPending;
         destinationMarker.SetActive(shouldShow);
         if (shouldShow) destinationMarker.transform.position = agent.destination;
@@ -150,15 +171,32 @@ public class PlayerController : MonoBehaviour
     {
         agent.ResetPath();
         agent.velocity = Vector3.zero;
-        animator.SetBool("IsMoving", false);
-        animator.SetFloat("Speed", 0f);
+        agent.isStopped = true;
+        
+        if (animator != null)
+        {
+            animator.SetBool("IsMoving", false);
+            animator.SetFloat("Speed", 0f);
+        }
+        
         currentSpeed = 0f;
         speedBufferTimer = 0f;
-        destinationMarker.SetActive(false);
+        
+        if (destinationMarker != null) destinationMarker.SetActive(false);
     }
 
     private void UpdateAnimationState()
     {
+        if (characterController.IsActionDisabled)
+        {
+            if (animator != null)
+            {
+                animator.SetBool("IsMoving", false);
+                animator.SetFloat("Speed", 0f);
+            }
+            return;
+        }
+
         bool isAgentStopped = agent.isStopped || agent.remainingDistance <= stopThreshold;
         float actualSpeed = isAgentStopped ? 0 : agent.velocity.magnitude;
         bool isActuallyMoving = actualSpeed > speedTriggerThreshold;
@@ -167,18 +205,18 @@ public class PlayerController : MonoBehaviour
         if (isActuallyMoving)
         {
             speedBufferTimer = 0;
-            animator.SetBool("IsMoving", true);
+            if (animator != null) animator.SetBool("IsMoving", true);
         }
         else
         {
             speedBufferTimer += Time.deltaTime;
-            if (speedBufferTimer >= speedBufferTime)
+            if (speedBufferTimer >= speedBufferTime && animator != null)
             {
                 animator.SetBool("IsMoving", false);
             }
         }
 
-        float targetSpeed = animator.GetBool("IsMoving") ? 
+        float targetSpeed = (animator != null && animator.GetBool("IsMoving")) ? 
             Mathf.Clamp01(actualSpeed / characterRunSpeed) : 
             0f;
 
@@ -189,7 +227,7 @@ public class PlayerController : MonoBehaviour
             speedSmoothTime
         );
     
-        animator.SetFloat("Speed", currentSpeed);
+        if (animator != null) animator.SetFloat("Speed", currentSpeed);
     }
 
     private void HandleRotation()
@@ -208,16 +246,17 @@ public class PlayerController : MonoBehaviour
     private void HandleBombPlacement()
     {
         activeBombs.RemoveAll(b => b == null);
-
-        // 修改：使用IsInvincible代替已删除的IsHitAnimationPlaying
-        if (characterController.IsInvincible)
+        
+        // 检查是否可行动
+        if (characterController.IsActionDisabled)
+        {
             return;
+        }
 
         if (Input.GetMouseButtonDown(0) || Input.GetKeyDown(KeyCode.A))
         {
             if (activeBombs.Count >= characterController.BaseStats.MaxBombs)
             {
-                Debug.Log($"炸弹数量已达上限 (当前时间戳: {Time.time:F2})");
                 return;
             }
 
@@ -232,35 +271,18 @@ public class PlayerController : MonoBehaviour
             );
 
             BombController bombController = newBomb.GetComponent<BombController>();
-            if (bombController != null)
+            if (bombController != null && GameManager.Instance != null)
             {
                 bombController.Initialize(GameManager.Instance.CurrentBombStats.Clone());
             }
 
             activeBombs.Add(newBomb);
-
-            Animator bombAnimator = newBomb.GetComponent<Animator>();
-            if (bombAnimator != null)
-            {
-                StateMachineBehaviour[] behaviours = bombAnimator.GetBehaviours<BombDestroyCallback>();
-                if (behaviours.Length > 0)
-                {
-                    BombDestroyCallback callback = (BombDestroyCallback)behaviours[0];
-                    callback.onDestroyComplete = () =>
-                    {
-                        if (activeBombs.Contains(newBomb))
-                            activeBombs.Remove(newBomb);
-                    };
-                }
-            }
         }
     }
 
     private void HandleBombRadiusIncrease()
     {
-        // 修改：使用IsInvincible代替已删除的IsHitAnimationPlaying
-        if (characterController.IsInvincible)
-            return;
+        if (characterController.IsActionDisabled) return;
 
         if (Input.GetKeyDown(KeyCode.D))
         {
